@@ -36,7 +36,7 @@ from keras.applications import imagenet_utils
 from keras.callbacks import ModelCheckpoint, Callback
 from keras.preprocessing.image import load_img
 from keras.preprocessing.image import img_to_array
-from keras.layers import Dense, Conv2D, MaxPooling2D, LSTM, GlobalMaxPooling2D, SpatialDropout1D
+from keras.layers import Dense, Conv2D, MaxPooling2D, LSTM, GlobalMaxPooling2D, SpatialDropout1D, AveragePooling2D
 from keras.layers import Dropout, Flatten, GlobalAveragePooling2D
 
 from keras.utils.generic_utils import get_custom_objects
@@ -45,22 +45,26 @@ from keras.layers import Activation
 from hypopt import GridSearch
 from sklearn.neural_network import MLPClassifier
 
-
+# Train whole data then test on decades
+from sklearn.preprocessing import MinMaxScaler
 
 epochs = 25
 batch_size = 32
 image_count = 100
+limit_data = False
+max_samples = 12000
 test_run = False
 generate_data = False
 load_image_data = False
 load_features = True
 load_features_flat = False
-show_dist_graphs = True
+show_dist_graphs = False
+normalize = True
 
 limit_memory = False
 
 remove_outliers = True
-threshold = 1
+threshold = 3
 
 
 def swish(x, beta = 1):
@@ -110,9 +114,10 @@ class EarlyStoppingByLossVal(Callback):
 
 
 def plot_loss(history):
+    start_epoch = 2
     fig = plt.figure(figsize=(10, 5))
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
+    plt.plot(history.history['loss'][start_epoch:])
+    plt.plot(history.history['val_loss'][start_epoch:])
     plt.title('model loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
@@ -131,6 +136,8 @@ if limit_memory:
 
 #Load up the clean data
 clean_data = np.load('cleanData.npy',allow_pickle=True)
+if limit_data:
+    clean_data = clean_data[:max_samples]
 data_y = []
 data = clean_data
 
@@ -138,11 +145,13 @@ def create_y(data):
     for comic in data:
         data_y.append(int(comic[6]))
     np.save("data_y.npy", data_y)
+    np.savetxt('data_y.csv', data_y, delimiter=',')
 
 
 if generate_data:
     create_y(data)
-    model = VGG16(weights='imagenet', include_top=False)
+    model = VGG16( include_top=False)
+    # model = VGG16( include_top=False)
     model.summary()
 
     print("Creating Features")
@@ -152,18 +161,20 @@ if generate_data:
     np.save("features.npy", features)
     np.save("features_flatten.npy", features_flatten)
 
-else:
-    print("Loading Data Set")
-    if load_image_data:
-        print("Loading image data")
-        image_data = np.load("image_data.npy")
-    if load_features:
-        print("Loading feature data")
-        features = np.load("features.npy")
-    if load_features_flat:
-        print("Loading flattend feature data")
-        features_flatten = np.load("features_flatten.npy")
-    data_y = np.load("data_y.npy")
+
+print("Loading Data Set")
+if load_image_data:
+    print("Loading image data")
+    image_data = np.load("image_data.npy")
+if load_features:
+    print("Loading feature data")
+    features = np.load("features.npy")
+if load_features_flat:
+    print("Loading flattend feature data")
+    features_flatten = np.load("features_flatten.npy")
+data_y = np.load("data_y.npy")
+if limit_data:
+    data_y = data_y[:max_samples]
 
 
 
@@ -197,46 +208,80 @@ percent = int(0.2 * len(indices))
 
 #train test validation split
 training_idx, test_idx, val_idx = indices[:index], indices[index:index+percent], indices[index+percent:]
-train, test, val = data[training_idx,:], data[test_idx,:], data[val_idx,:]
+train_data, test_data, val_data = data[training_idx,:], data[test_idx,:], data[val_idx,:]
 
 if load_image_data:
-    train_image, test_image, val_image = image_data[training_idx,:], image_data[test_idx,:], image_data[val_idx,:]
+    train, test, val = image_data[training_idx,:], image_data[test_idx,:], image_data[val_idx,:]
 
 if load_features:
-    train_features, test_features, val_features = features[training_idx,:], features[test_idx,:], features[val_idx,:]
+    train, test, val = features[training_idx,:], features[test_idx,:], features[val_idx,:]
 
 if load_features_flat:
-    train_features_flatten, test_features_flatten, val_features_flatten = features_flatten[training_idx,:], features_flatten[test_idx,:], features_flatten[val_idx,:]
+    train, test, val = features_flatten[training_idx,:], features_flatten[test_idx,:], features_flatten[val_idx,:]
+
 
 train_y, test_y, val_y = data_y[training_idx], data_y[test_idx], data_y[val_idx]
+if normalize:
+    exp = .2
+    train_y = np.power(train_y.astype(float),exp)
+    val_y = np.power(val_y.astype(float),exp)
+    scaler = MinMaxScaler()
+
+    train_y = train_y.reshape(-1, 1)
+    # train_y = scaler.fit(train_y)
+    normalized_train_y = scaler.fit_transform(train_y)
+    inverse_train_y = scaler.inverse_transform(normalized_train_y)
+
+    val_y = val_y.reshape(-1, 1)
+    # val_y = scaler.fit(val_y)
+    normalized_val_y = scaler.fit_transform(val_y)
+    inverse_train_y = scaler.inverse_transform(normalized_val_y)
+
+    # train_y = np.power(train_y.astype(float), exp)
+    # val_y = np.power(val_y.astype(float),exp)
 
 
 
 
-if show_dist_graphs:
+
+if normalize:
     yPlot = data_y
     y_pos = np.sort(yPlot.astype(int))
     sns.set(color_codes=True)
     sns.distplot(y_pos)
     plt.show()
 
-    yPlot = train_y
-    y_pos = np.sort(yPlot.astype(int))
-    x_pos = np.arange(len(yPlot))
-    plt.scatter(x_pos, y_pos, alpha=0.5, color='red')
-    plt.show()
+    if normalize:
+        yPlot = data_y
+        exp = .2
+        yPlot = np.power(yPlot.astype(float),exp)
+        yPlot = yPlot.reshape(-1, 1)
+        # yPlot = scaler.fit(yPlot)
+        normalized_yPlot = scaler.fit_transform(yPlot)
+        inverse_train_y = scaler.inverse_transform(normalized_yPlot)
 
-    yPlot = test_y
-    y_pos = np.sort(yPlot.astype(int))
-    x_pos = np.arange(len(yPlot))
-    plt.scatter(x_pos, y_pos, alpha=0.5, color='blue')
-    plt.show()
+        y_pos = np.sort(normalized_yPlot)
+        sns.set(color_codes=True)
+        sns.distplot(y_pos)
+        plt.show()
 
-    yPlot = val_y
-    y_pos = np.sort(yPlot.astype(int))
-    x_pos = np.arange(len(yPlot))
-    plt.scatter(x_pos, y_pos, alpha=0.5,color='green')
-    plt.show()
+    # yPlot = train_y
+    # y_pos = np.sort(yPlot.astype(int))
+    # x_pos = np.arange(len(yPlot))
+    # plt.scatter(x_pos, y_pos, alpha=0.5, color='red')
+    # plt.show()
+    #
+    # yPlot = test_y
+    # y_pos = np.sort(yPlot.astype(int))
+    # x_pos = np.arange(len(yPlot))
+    # plt.scatter(x_pos, y_pos, alpha=0.5, color='blue')
+    # plt.show()
+    #
+    # yPlot = val_y
+    # y_pos = np.sort(yPlot.astype(int))
+    # x_pos = np.arange(len(yPlot))
+    # plt.scatter(x_pos, y_pos, alpha=0.5,color='green')
+    # plt.show()
 
 
 
@@ -251,8 +296,8 @@ callbacks = [
 
 def baseline_model():
     model = Sequential()
-    model.add(GlobalAveragePooling2D(input_shape=train_features.shape[1:]))
-    # model.add(Dense(128, activation='relu'))
+    model.add(MaxPooling2D(input_shape=train.shape[1:]))
+    model.add(Flatten())
     model.add(Dense(512, activation=swish))
     model.add(Dropout(0.1))
     # model.add(Dense(64, activation=swish))
@@ -263,18 +308,25 @@ def baseline_model():
     return model
 
 
+print("Shape:" + str(train.shape[1:]))
+
+
 estimator = KerasRegressor(build_fn=baseline_model, nb_epoch=100, batch_size=100, verbose=False)
 
 # kfold = KFold(n_splits=10, random_state=seed)
 # results = cross_val_score(estimator, train_features, y_train, cv=kfold)
 # print("Results: %.2f (%.2f) MSE" % (results.mean(), results.std()))
 
-history = estimator.fit(train_features, train_y, batch_size=batch_size, epochs=epochs,
-          validation_data=(val_features, val_y), callbacks=callbacks,
+history = estimator.fit(train, train_y, batch_size=batch_size, epochs=epochs,
+          validation_data=(val, val_y), callbacks=callbacks,
           verbose=1, shuffle=True)
-prediction = estimator.predict(test_features)
 
-test_error =  np.abs(test_y - prediction)
+prediction = estimator.predict(test)
+if normalize:
+    prediction = np.power(prediction, 5)
+    prediction = prediction.reshape(-1,1)
+    prediction = scaler.inverse_transform(prediction)
+test_error = np.abs(test_y - prediction)
 mean_error = np.mean(test_error)
 min_error = np.min(test_error)
 max_error = np.max(test_error)
@@ -288,17 +340,18 @@ plt.ylabel("Predictions")
 plt.show()
 
 
-y_pos = np.sort(test_error.astype(int))
-x_pos = np.arange(len(y_pos))
-plt.scatter(x_pos, y_pos, alpha=0.5, color='red')
-plt.show()
-
-y_pos = np.sort(prediction.astype(int))
-x_pos = np.arange(len(y_pos))
-plt.scatter(x_pos, y_pos, alpha=0.5, color='yellow')
-plt.show()
+# y_pos = np.sort(test_error.astype(int))
+# x_pos = np.arange(len(y_pos))
+# plt.scatter(x_pos, y_pos, alpha=0.5, color='red')
+# plt.show()
+#
+# y_pos = np.sort(prediction.astype(int))
+# x_pos = np.arange(len(y_pos))
+# plt.scatter(x_pos, y_pos, alpha=0.5, color='yellow')
+# plt.show()
 
 print("Mean Error:" + str(mean_error))
 print("Min Error:" + str(min_error))
 print("Max Error:" + str(max_error))
 print("Std Error:" + str(std_error))
+
