@@ -12,6 +12,7 @@ from keras import Input
 from keras.applications import VGG16
 from keras.applications import imagenet_utils
 from keras.backend import sigmoid
+import keras.backend as K
 from keras.callbacks import ModelCheckpoint, Callback
 from keras.layers import Activation, BatchNormalization, MaxPooling1D, GlobalAveragePooling1D, Conv2D, \
     GlobalAveragePooling2D, Conv1D, MaxPool1D
@@ -25,14 +26,14 @@ from keras.wrappers.scikit_learn import KerasRegressor
 from scipy.stats import stats
 # Train whole data then test on decades
 from sklearn.linear_model import Ridge
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import MinMaxScaler
 
 
 # Importing sklearn libraries
 
-epochs = 50
+epochs = 10
 batch_size = 32
 image_count = 10000
 limit_data = True
@@ -57,6 +58,10 @@ def swish(x, beta = 1):
 
 get_custom_objects().update({'swish': Activation(swish)})
 
+
+def tilted_loss(q,y,f):
+    e = (y-f)
+    return K.mean(K.maximum(q*e, (q-1)*e), axis=-1)
 
 def create_features(dataSource, pre_model):
     x_scratch = []
@@ -404,10 +409,12 @@ def baseline_model():
     model.add(Dense(256, activation=swish, use_bias=True))
     model.add(Flatten())
     model.add(Dense(1))
-    model.compile(loss='mse', optimizer=optimizer, metrics=['mse', 'mae','mape'])
+    # model.compile(loss='huber', optimizer=optimizer, metrics=['mse', 'mae','mape'])
+
+    model.compile(loss=lambda y, f: tilted_loss(quantile, y, f), optimizer='adagrad')
     return model
 
-
+quantile = 0.9
 estimator = KerasRegressor(build_fn=baseline_model, nb_epoch=100, batch_size= 100, verbose=False)
 
 # kfold = KFold(n_splits=10, random_state=seed)
@@ -421,12 +428,31 @@ estimator = KerasRegressor(build_fn=baseline_model, nb_epoch=100, batch_size= 10
 # val = val.reshape(len(val),1000,32,1)
 
 ridge=Ridge()
-parameters= {'alpha':[x for x in [0.1,0.2,0.4,0.5,0.7,0.8,1]]}
+# parameters= {'alpha':[x for x in [.001,.0015,0.002]]}
 
-ridge_reg=GridSearchCV(ridge, param_grid=parameters)
-ridge_reg.fit(train,train_y)
-print("The best value of Alpha is: ",ridge_reg.best_params_)
+nsamples, nx, ny = train.shape
+d2_train_dataset = train.reshape((nsamples,nx*ny))
 
+nsamples, nx, ny = test.shape
+d2_test_dataset = test.reshape((nsamples,nx*ny))
+
+nsamples, nx, ny = val.shape
+d2_val_dataset = val.reshape((nsamples,nx*ny))
+
+# ridge_reg=GridSearchCV(ridge, param_grid=parameters)
+# ridge_reg.fit(d2_train_dataset,train_y)
+# print("The best value of Alpha is: ",ridge_reg.best_params_)
+
+
+ridge_mod=Ridge(alpha=.0015)
+ridge_mod.fit(d2_train_dataset,train_y)
+y_pred_train=ridge_mod.predict(d2_train_dataset)
+y_pred_test=ridge_mod.predict(d2_test_dataset)
+y_pred_val=ridge_mod.predict(d2_val_dataset)
+
+print('Root Mean Square Error train = ' + str(np.sqrt(mean_squared_error(train_y, y_pred_train))))
+print('Root Mean Square Error val = ' + str(np.sqrt(mean_squared_error(val_y, y_pred_val))))
+print('Root Mean Square Error test = ' + str(np.sqrt(mean_squared_error(test_y, y_pred_test))))
 
 history = estimator.fit(train, train_y, batch_size=batch_size, epochs=epochs,
           validation_data=(val, val_y), callbacks = callbacks,
@@ -468,4 +494,8 @@ print("Mean Error:" + str(mean_error))
 print("Min Error:" + str(min_error))
 print("Max Error:" + str(max_error))
 print("Std Error:" + str(std_error))
+
+print('Root Mean Square Error train = ' + str(np.sqrt(mean_squared_error(train_y, y_pred_train))))
+print('Root Mean Square Error val = ' + str(np.sqrt(mean_squared_error(val_y, y_pred_val))))
+print('Root Mean Square Error test = ' + str(np.sqrt(mean_squared_error(test_y, y_pred_test))))
 
