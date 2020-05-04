@@ -1,17 +1,20 @@
 import warnings
 
 import cv2
+import cv2.cuda as cv2cuda
 import matplotlib.pyplot as plt
 import numpy as np
 import pylab
 import seaborn as sns
 # Importing Keras libraries
 import tensorflow as tf
+from keras import Input
 from keras.applications import VGG16
 from keras.applications import imagenet_utils
 from keras.backend import sigmoid
 from keras.callbacks import ModelCheckpoint, Callback
-from keras.layers import Activation, BatchNormalization, MaxPooling1D
+from keras.layers import Activation, BatchNormalization, MaxPooling1D, GlobalAveragePooling1D, Conv2D, \
+    GlobalAveragePooling2D, Conv1D, MaxPool1D
 from keras.layers import Dense, MaxPooling2D
 from keras.layers import Dropout, Flatten
 from keras.models import Sequential
@@ -21,25 +24,29 @@ from keras.utils.generic_utils import get_custom_objects
 from keras.wrappers.scikit_learn import KerasRegressor
 from scipy.stats import stats
 # Train whole data then test on decades
+from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
+from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import MinMaxScaler
+
 
 # Importing sklearn libraries
 
-epochs = 10
+epochs = 50
 batch_size = 32
-image_count = 100
-limit_data = False
-max_samples = 12000
-test_run = False
+image_count = 10000
+limit_data = True
+# max_samples = 100
+# test_run = True
 generate_data = False
 load_image_data = False
 load_features = True
 load_features_flat = False
 show_dist_graphs = False
-normalize = True
+normalize = False
+use_orb = True
 
-limit_memory = True
+limit_memory = False
 
 remove_outliers = True
 threshold = 1
@@ -114,27 +121,39 @@ if limit_memory:
 
 #Load up the clean data
 clean_data = np.load('cleanData.npy',allow_pickle=True)
-img_path = clean_data[3][3]
-        # print(img_path)
-img = cv2.imread(img_path)
-img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 sift = cv2.xfeatures2d.SIFT_create()
 surf = cv2.xfeatures2d.SURF_create()
-orb = cv2.ORB_create(nfeatures=1500)
+orb_feature_count = 1000
+
+orb = cv2.ORB_create(nfeatures=orb_feature_count, scoreType=cv2.ORB_FAST_SCORE)
 
 def get_orb_features(dataSource):
-    x_scratch = []
+    x_scratch = np.zeros(shape=(1,orb_feature_count, 32))
+    count = 0
     for comic in dataSource:
+        if(count % 100 == 0):
+            print("Comic:" + str(count) + " of " + str(len(dataSource)))
+        count = count + 1
         img_path = comic[3]
         # print(img_path)
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # descriptors = sift.detectAndCompute(img, None)
         # descriptors = surf.detectAndCompute(img, None)
-        descriptors = orb.detectAndCompute(img, None)
-        x = np.vstack(descriptors)
-
+        keypoints, descriptors = orb.detectAndCompute(img, None)
+        try:
+            while len(descriptors) < orb_feature_count:
+                newrow = np.zeros(shape=(32))
+                descriptors = np.vstack((descriptors,newrow))
+            while len(descriptors) > orb_feature_count:
+                descriptors = np.delete(descriptors, 0,0)
+            descriptors = descriptors[np.newaxis,:,:]
+        except (RuntimeError, TypeError, NameError):
+            descriptors = np.zeros(shape=(1,orb_feature_count, 32))
+        x_scratch = np.vstack((x_scratch,descriptors))
+    x = np.asarray(x_scratch)
+    x = np.delete(x, 0,0)
 
     # features = pre_model.predict(x, batch_size=batch_size)
     # features_flatten = features.reshape((features.shape[0], 7 * 7 * 512))
@@ -143,9 +162,9 @@ def get_orb_features(dataSource):
 
 
 
-img = cv2.drawKeypoints(img, keypoints_orb, None)
-cv2.imshow("Image", img)
-cv2.waitKey(0)
+# img = cv2.drawKeypoints(img, keypoints_orb, None)
+# cv2.imshow("Image", img)
+# cv2.waitKey(0)
 
 # img_data = image.img_to_array(img)
 #         # img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2GRAY)
@@ -153,7 +172,7 @@ cv2.waitKey(0)
 # img_data = np.squeeze(img_data, axis=0)
 
 if limit_data:
-    clean_data = clean_data[:max_samples]
+    clean_data = clean_data[:image_count]
 data_y = []
 data = clean_data
 
@@ -163,23 +182,24 @@ def create_y(data):
     np.save("data_y.npy", data_y)
     np.savetxt('data_y.csv', data_y, delimiter=',')
 
-vggmodel = VGG16( weights="imagenet",include_top=False)
-    # model = VGG16( include_top=False)
-vggmodel.summary()
-
-
 if generate_data:
-    create_y(data)
-    model = VGG16( weights="imagenet",include_top=False)
-    # model = VGG16( include_top=False)
-    model.summary()
+    if (use_orb):
+        print("getting Orb")
+        features = get_orb_features(data)
+        np.save("features_orb.npy", features)
+        print("Orb Saved")
+    else:
+        create_y(data)
+        model = VGG16( weights="imagenet",include_top=False)
+        # model = VGG16( include_top=False)
+        model.summary()
 
-    print("Creating Features")
-    image_data, features, features_flatten = create_features(clean_data, model)
+        print("Creating Features")
+        image_data, features, features_flatten = create_features(clean_data, model)
 
-    np.save("image_data.npy", image_data)
-    np.save("features.npy", features)
-    np.save("features_flatten.npy", features_flatten)
+        np.save("image_data.npy", image_data)
+        np.save("features.npy", features)
+        np.save("features_flatten.npy", features_flatten)
 
 
 print("Loading Data Set")
@@ -188,13 +208,16 @@ if load_image_data:
     image_data = np.load("image_data.npy")
 if load_features:
     print("Loading feature data")
-    features = np.load("features.npy")
+    if use_orb:
+        features = np.load("features_orb.npy", allow_pickle=True)
+    else:
+        features = np.load("features.npy")
 if load_features_flat:
-    print("Loading flattend feature data")
+    print("Loading flattened feature data")
     features_flatten = np.load("features_flatten.npy")
 data_y = np.load("data_y.npy")
 if limit_data:
-    data_y = data_y[:max_samples]
+    data_y = data_y[:image_count]
 
 
 
@@ -217,7 +240,7 @@ if remove_outliers:
 
 #used to reduce the image pool to run faster tests
 np.random.rand(42)
-if test_run:
+if limit_data:
     print("Test Run Activated Running on Reduced Data Set")
     print("Image Count: " + str(image_count))
     indices = np.random.permutation(data.shape[0])[:image_count]
@@ -244,10 +267,8 @@ if load_image_data:
     train, test, val = image_data[training_idx,:], image_data[test_idx,:], image_data[val_idx,:]
 
 if load_features:
-    if(use_orb):
-        features = get_orb_features(data)
-    else:
-        train, test, val = features[training_idx,:], features[test_idx,:], features[val_idx,:]
+    print(features.shape)
+    train, test, val = features[training_idx], features[test_idx], features[val_idx]
 
 if load_features_flat:
     train, test, val = features_flatten[training_idx,:], features_flatten[test_idx,:], features_flatten[val_idx,:]
@@ -327,14 +348,44 @@ callbacks = [
     checkpointer]
 
 
-optimizer = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, amsgrad=False)
+optimizer = Adam(learning_rate=0.01, beta_1=0.9, beta_2=0.999, amsgrad=False)
 # optimizer = SGD(lr=0.01, momentum=0.9)
 
 def baseline_model():
+    # model = Sequential()
+    # model.add(MaxPooling1D())
+
     model = Sequential()
-    model.add(MaxPooling2D(pool_size=7, input_shape=train.shape[1:]))
-    model.add(Flatten())
-    model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
+    # model.add(Conv1D(3,3, activation='relu', input_shape=train.shape[1:]))
+    # model.add(Conv1D(3,3, activation='relu'))
+    # model.add(MaxPool1D(2))
+    # model.add(Dropout(0.5))
+    #
+    # model.add(Conv1D(3,3, activation='relu'))
+    # model.add(Conv1D(3,3, activation='relu'))
+    # model.add(MaxPool1D(2))
+    # model.add(Dropout(0.5))
+    # model.add(Flatten())
+
+    # model.add(Dense(1024, activation="swish", input_shape=train.shape[1:]))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(1, activation=swish))
+    #
+    # model.compile(loss='mse', optimizer=optimizer, metrics=['mse', 'mae','mape'])
+
+
+
+    # model.add(Dense(1024, activation='relu', input_shape=train.shape[1:]))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(64, activation='relu'))
+    # model.add(Dropout(0.5))
+    # model.add(Flatten())
+    # model.add(Dense(1, activation='relu'))
+
+    # model = Sequential()
+    # model.add(GlobalAveragePooling1D(input_shape=train.shape[1:]))
+    # model.add(Flatten())
+    # model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
 
     #     # model.add(Dense(256, activation=swish))
     #     # model.add(Dropout(0.5))
@@ -344,19 +395,17 @@ def baseline_model():
     #     # # model.add(Dropout(0.5))
     #     # # model.add(Dense(1, activation="relu"))
     #     # model.add(Dense(1))
-    model.add(Dense(1024, activation=swish, use_bias=True))
-    # model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
+    model.add(Dense(1024, activation=swish,input_shape=train.shape[1:]))
+    model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
     model.add(Dropout(0.5))
-    # model.add(Dense(1024, activation=swish, use_bias=True))
-    # # model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
-    # model.add(Dropout(0.5))
-    # model.add(Dense(256, activation=swish, use_bias=True))
+    model.add(Dense(1024, activation=swish, use_bias=True))
+    model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
+    model.add(Dropout(0.5))
+    model.add(Dense(256, activation=swish, use_bias=True))
+    model.add(Flatten())
     model.add(Dense(1))
     model.compile(loss='mse', optimizer=optimizer, metrics=['mse', 'mae','mape'])
     return model
-
-
-print("Shape:" + str(train.shape[1:]))
 
 
 estimator = KerasRegressor(build_fn=baseline_model, nb_epoch=100, batch_size= 100, verbose=False)
@@ -364,6 +413,20 @@ estimator = KerasRegressor(build_fn=baseline_model, nb_epoch=100, batch_size= 10
 # kfold = KFold(n_splits=10, random_state=seed)
 # results = cross_val_score(estimator, train_features, y_train, cv=kfold)
 # print("Results: %.2f (%.2f) MSE" % (results.mean(), results.std()))
+
+# train_flat_trick = np.reshape(train, len(train)^2, 1)
+
+# train = train.reshape(len(train),1000,32,1)
+# test = test.reshape(len(test),1000,32,1)
+# val = val.reshape(len(val),1000,32,1)
+
+ridge=Ridge()
+parameters= {'alpha':[x for x in [0.1,0.2,0.4,0.5,0.7,0.8,1]]}
+
+ridge_reg=GridSearchCV(ridge, param_grid=parameters)
+ridge_reg.fit(train,train_y)
+print("The best value of Alpha is: ",ridge_reg.best_params_)
+
 
 history = estimator.fit(train, train_y, batch_size=batch_size, epochs=epochs,
           validation_data=(val, val_y), callbacks = callbacks,
