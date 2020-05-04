@@ -44,7 +44,7 @@ load_image_data = False
 load_features = True
 load_features_flat = False
 show_dist_graphs = False
-normalize = False
+normalize = True
 use_orb = True
 
 limit_memory = False
@@ -307,7 +307,7 @@ if show_dist_graphs:
     yPlot = data_y
     y_pos = np.sort(yPlot.astype(int))
     sns.set(color_codes=True)
-    sns.distplot(y_pos)
+    sns.distplot(y_pos,bins=20)
     plt.show()
 
     if normalize:
@@ -327,14 +327,14 @@ if show_dist_graphs:
     # yPlot = train_y
     # y_pos = np.sort(yPlot.astype(int))
     # x_pos = np.arange(len(yPlot))
-    # plt.scatter(x_pos, y_pos, alpha=0.5, color='red')
-    # plt.show()
+    # plt.scatter(x_pos, y_pos, alpha=0.5, color='blue')
+    # # plt.show()
     #
     # yPlot = test_y
     # y_pos = np.sort(yPlot.astype(int))
     # x_pos = np.arange(len(yPlot))
-    # plt.scatter(x_pos, y_pos, alpha=0.5, color='blue')
-    # plt.show()
+    # plt.scatter(x_pos, y_pos, alpha=0.5, color='red')
+    # # plt.show()
     #
     # yPlot = val_y
     # y_pos = np.sort(yPlot.astype(int))
@@ -349,7 +349,7 @@ checkpointer = ModelCheckpoint(filepath='scratchmodel.best.hdf5',
                                verbose=1, save_best_only=True)
 
 callbacks = [
-    # EarlyStoppingByLossVal(monitor='val_loss', value=0.001, verbose=1),
+    EarlyStoppingByLossVal(monitor='val_loss', value=0.001, verbose=1),
     checkpointer]
 
 
@@ -409,9 +409,9 @@ def baseline_model():
     model.add(Dense(256, activation=swish, use_bias=True))
     model.add(Flatten())
     model.add(Dense(1))
-    # model.compile(loss='huber', optimizer=optimizer, metrics=['mse', 'mae','mape'])
-
-    model.compile(loss=lambda y, f: tilted_loss(quantile, y, f), optimizer='adagrad')
+    # model.compile(loss='mse', optimizer=optimizer, metrics=['mse', 'mae','mape'])
+    #
+    model.compile(loss=lambda y, f: tilted_loss(quantile, y, f), optimizer='adagrad' , metrics=['mse', 'mae','mape'])
     return model
 
 quantile = 0.9
@@ -472,11 +472,29 @@ min_error = np.min(test_error)
 max_error = np.max(test_error)
 std_error = np.std(test_error)
 
+
+print("Mean Error:" + str(mean_error))
+print("Min Error:" + str(min_error))
+print("Max Error:" + str(max_error))
+print("Std Error:" + str(std_error))
+
+print('Root Mean Square Error train = ' + str(np.sqrt(mean_squared_error(train_y, y_pred_train))))
+print('Root Mean Square Error val = ' + str(np.sqrt(mean_squared_error(val_y, y_pred_val))))
+print('Root Mean Square Error test = ' + str(np.sqrt(mean_squared_error(test_y, y_pred_test))))
+
+
 plot_loss(history)
 
-plt.scatter(test_y, prediction)
+
+plt.yscale('log')
+plt.scatter(test_y, test_error)
 plt.xlabel("True Values")
-plt.ylabel("Predictions")
+plt.ylabel("Error")
+plt.show()
+
+plt.scatter(test_y, prediction)
+plt.xlabel("index")
+plt.ylabel("Prediction")
 plt.show()
 
 
@@ -489,13 +507,4 @@ plt.show()
 # x_pos = np.arange(len(y_pos))
 # plt.scatter(x_pos, y_pos, alpha=0.5, color='yellow')
 # plt.show()
-
-print("Mean Error:" + str(mean_error))
-print("Min Error:" + str(min_error))
-print("Max Error:" + str(max_error))
-print("Std Error:" + str(std_error))
-
-print('Root Mean Square Error train = ' + str(np.sqrt(mean_squared_error(train_y, y_pred_train))))
-print('Root Mean Square Error val = ' + str(np.sqrt(mean_squared_error(val_y, y_pred_val))))
-print('Root Mean Square Error test = ' + str(np.sqrt(mean_squared_error(test_y, y_pred_test))))
 

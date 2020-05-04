@@ -27,15 +27,15 @@ def get_orb_features(dataSource):
         # descriptors = surf.detectAndCompute(img, None)
         keypoints, descriptors = orb.detectAndCompute(img, None)
         try:
-            while len(descriptors) < orb_feature_count:
-                newrow = np.zeros(shape=(32))
-                descriptors = np.vstack((descriptors,newrow))
-            while len(descriptors) > orb_feature_count:
-                descriptors = np.delete(descriptors, 0,0)
-            descriptors = descriptors[np.newaxis,:,:]
+            while len(keypoints) < orb_feature_count:
+                newrow = np.zeros(shape=(1))
+                keypoints = np.vstack((keypoints,newrow))
+            while len(keypoints) > orb_feature_count:
+                keypoints = np.delete(keypoints, 0,0)
+            keypoints = keypoints[np.newaxis,:]
         except (RuntimeError, TypeError, NameError):
-            descriptors = np.zeros(shape=(1,orb_feature_count, 32))
-        x_scratch = np.vstack((x_scratch,descriptors))
+            keypoints = np.zeros(shape=(1,orb_feature_count))
+        x_scratch = np.vstack((x_scratch,keypoints))
     x = np.asarray(x_scratch)
     x = np.delete(x, 0,0)
 
@@ -50,7 +50,7 @@ split_data = np.array_split(data, 10)
 for x in range(0 , 10):
     try:
         print("Set: " + str(x))
-        np.save("features_orb_"+ str(x) + ".npy", get_orb_features(split_data[x]))
+        np.save("features_orb_points_"+ str(x) + ".npy", get_orb_features(split_data[x]))
     except:
         continue
 np.save("features_orb.npy", get_orb_features(data))
