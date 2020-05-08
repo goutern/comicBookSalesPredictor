@@ -46,8 +46,9 @@ def get_orb_features(dataSource):
 
 
 print("getting Orb")
+# Get the orb features and save them in chunks for better recovery
 split_data = np.array_split(data, 10)
-for x in range(0 , 10):
+for x in range(0, 10):
     try:
         print("Set: " + str(x))
         np.save("features_orb_points_"+ str(x) + ".npy", get_orb_features(split_data[x]))

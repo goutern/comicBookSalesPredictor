@@ -33,19 +33,19 @@ from sklearn.preprocessing import MinMaxScaler
 
 # Importing sklearn libraries
 
-epochs = 10
+epochs = 100
 batch_size = 32
-image_count = 10000
-limit_data = True
+image_count = 10
+limit_data = False
 # max_samples = 100
 # test_run = True
 generate_data = False
-load_image_data = False
-load_features = True
+load_image_data = True
+load_features = False
 load_features_flat = False
 show_dist_graphs = False
-normalize = True
-use_orb = True
+normalize = False
+use_orb = False
 
 limit_memory = False
 
@@ -211,10 +211,30 @@ print("Loading Data Set")
 if load_image_data:
     print("Loading image data")
     image_data = np.load("image_data.npy")
+
 if load_features:
     print("Loading feature data")
     if use_orb:
-        features = np.load("features_orb.npy", allow_pickle=True)
+        features_orb_0 = np.load("features_orb_0.npy", allow_pickle=True)
+        features_orb_1 = np.load("features_orb_1.npy", allow_pickle=True)
+        features_orb_2 = np.load("features_orb_2.npy", allow_pickle=True)
+        features_orb_3 = np.load("features_orb_3.npy", allow_pickle=True)
+        features_orb_4 = np.load("features_orb_4.npy", allow_pickle=True)
+        features_orb_5 = np.load("features_orb_5.npy", allow_pickle=True)
+        features_orb_6 = np.load("features_orb_6.npy", allow_pickle=True)
+        features_orb_7 = np.load("features_orb_7.npy", allow_pickle=True)
+        features_orb_8 = np.load("features_orb_8.npy", allow_pickle=True)
+        features_orb_9 = np.load("features_orb_9.npy", allow_pickle=True)
+        features = np.concatenate((features_orb_0,
+                                   features_orb_1,
+                                   features_orb_2,
+                                   features_orb_3,
+                                   features_orb_4,
+                                   features_orb_5,
+                                   features_orb_6,
+                                   features_orb_7,
+                                   features_orb_8,
+                                   features_orb_9), axis=0)
     else:
         features = np.load("features.npy")
 if load_features_flat:
@@ -355,12 +375,11 @@ callbacks = [
 
 optimizer = Adam(learning_rate=0.01, beta_1=0.9, beta_2=0.999, amsgrad=False)
 # optimizer = SGD(lr=0.01, momentum=0.9)
-
 def baseline_model():
     # model = Sequential()
     # model.add(MaxPooling1D())
 
-    model = Sequential()
+    # model = Sequential()
     # model.add(Conv1D(3,3, activation='relu', input_shape=train.shape[1:]))
     # model.add(Conv1D(3,3, activation='relu'))
     # model.add(MaxPool1D(2))
@@ -400,19 +419,52 @@ def baseline_model():
     #     # # model.add(Dropout(0.5))
     #     # # model.add(Dense(1, activation="relu"))
     #     # model.add(Dense(1))
-    model.add(Dense(1024, activation=swish,input_shape=train.shape[1:]))
-    model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
-    model.add(Dropout(0.5))
-    model.add(Dense(1024, activation=swish, use_bias=True))
-    model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
-    model.add(Dropout(0.5))
-    model.add(Dense(256, activation=swish, use_bias=True))
-    model.add(Flatten())
-    model.add(Dense(1))
-    # model.compile(loss='mse', optimizer=optimizer, metrics=['mse', 'mae','mape'])
+    # model.add(Dense(1024, activation=swish,input_shape=train.shape[1:]))
+    # model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(1024, activation=swish, use_bias=True))
+    # model.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(256, activation=swish, use_bias=True))
+    # model.add(Flatten())
+    # model.add(Dense(1))
+    # model.compile(loss='mse', optimizer="adagrad", metrics=['mse', 'mae','mape'])
     #
-    model.compile(loss=lambda y, f: tilted_loss(quantile, y, f), optimizer='adagrad' , metrics=['mse', 'mae','mape'])
-    return model
+    # Building up a Sequential model
+    stride_val = 2
+
+    model_scratch = Sequential()
+    model_scratch.add(Conv2D(32, (3, 3), activation=swish, strides=stride_val, input_shape=train.shape[1:]))
+
+    if stride_val == 1: model_scratch.add(MaxPooling2D(pool_size=(2, 2)))
+
+    model_scratch.add(Conv2D(64, (3, 3), activation=swish, strides=stride_val))
+    if stride_val == 1:model_scratch.add(MaxPooling2D(pool_size=(2, 2)))
+
+    model_scratch.add(Conv2D(64, (3, 3), activation=swish, strides=stride_val))
+    if stride_val == 1:model_scratch.add(MaxPooling2D(pool_size=(2, 2)))
+
+    model_scratch.add(Conv2D(128, (3, 3), activation=swish, strides=stride_val))
+    if stride_val == 1:model_scratch.add(MaxPooling2D(pool_size=(2, 2)))
+
+    model_scratch.add(Conv2D(256, (3, 3), activation=swish, strides=stride_val))
+    if stride_val == 1:model_scratch.add(MaxPooling2D(pool_size=(2, 2)))
+
+    model_scratch.add(Conv2D(512, (3, 3), activation=swish, strides=stride_val))
+    if stride_val == 1:model_scratch.add(MaxPooling2D(pool_size=(2, 2)))
+
+
+    model_scratch.add(Flatten())
+    model_scratch.add(Dense(512, activation=swish))
+    model_scratch.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
+    model_scratch.add(Dropout(0.5))
+    model_scratch.add(Dense(512, activation=swish))
+    model_scratch.add(BatchNormalization(epsilon=1e-05, momentum=0.1))
+    model_scratch.add(Dropout(0.5))
+    model_scratch.add(Dense(1, activation=swish))
+    model_scratch.compile(loss=lambda y, f: tilted_loss(quantile, y, f), optimizer='adagrad' , metrics=['mse', 'mae','mape'])
+    model_scratch.summary()
+    return model_scratch
 
 quantile = 0.9
 estimator = KerasRegressor(build_fn=baseline_model, nb_epoch=100, batch_size= 100, verbose=False)
@@ -427,32 +479,32 @@ estimator = KerasRegressor(build_fn=baseline_model, nb_epoch=100, batch_size= 10
 # test = test.reshape(len(test),1000,32,1)
 # val = val.reshape(len(val),1000,32,1)
 
-ridge=Ridge()
-# parameters= {'alpha':[x for x in [.001,.0015,0.002]]}
-
-nsamples, nx, ny = train.shape
-d2_train_dataset = train.reshape((nsamples,nx*ny))
-
-nsamples, nx, ny = test.shape
-d2_test_dataset = test.reshape((nsamples,nx*ny))
-
-nsamples, nx, ny = val.shape
-d2_val_dataset = val.reshape((nsamples,nx*ny))
+# ridge=Ridge()
+# # parameters= {'alpha':[x for x in [.001,.0015,0.002]]}
+#
+# nsamples, nx, ny = train.shape
+# d2_train_dataset = train.reshape((nsamples,nx*ny))
+#
+# nsamples, nx, ny = test.shape
+# d2_test_dataset = test.reshape((nsamples,nx*ny))
+#
+# nsamples, nx, ny = val.shape
+# d2_val_dataset = val.reshape((nsamples,nx*ny))
 
 # ridge_reg=GridSearchCV(ridge, param_grid=parameters)
 # ridge_reg.fit(d2_train_dataset,train_y)
 # print("The best value of Alpha is: ",ridge_reg.best_params_)
 
 
-ridge_mod=Ridge(alpha=.0015)
-ridge_mod.fit(d2_train_dataset,train_y)
-y_pred_train=ridge_mod.predict(d2_train_dataset)
-y_pred_test=ridge_mod.predict(d2_test_dataset)
-y_pred_val=ridge_mod.predict(d2_val_dataset)
-
-print('Root Mean Square Error train = ' + str(np.sqrt(mean_squared_error(train_y, y_pred_train))))
-print('Root Mean Square Error val = ' + str(np.sqrt(mean_squared_error(val_y, y_pred_val))))
-print('Root Mean Square Error test = ' + str(np.sqrt(mean_squared_error(test_y, y_pred_test))))
+# ridge_mod=Ridge(alpha=.0015)
+# ridge_mod.fit(d2_train_dataset,train_y)
+# y_pred_train=ridge_mod.predict(d2_train_dataset)
+# y_pred_test=ridge_mod.predict(d2_test_dataset)
+# y_pred_val=ridge_mod.predict(d2_val_dataset)
+#
+# print('Root Mean Square Error train = ' + str(np.sqrt(mean_squared_error(train_y, y_pred_train))))
+# print('Root Mean Square Error val = ' + str(np.sqrt(mean_squared_error(val_y, y_pred_val))))
+# print('Root Mean Square Error test = ' + str(np.sqrt(mean_squared_error(test_y, y_pred_test))))
 
 history = estimator.fit(train, train_y, batch_size=batch_size, epochs=epochs,
           validation_data=(val, val_y), callbacks = callbacks,
@@ -473,14 +525,15 @@ max_error = np.max(test_error)
 std_error = np.std(test_error)
 
 
+
 print("Mean Error:" + str(mean_error))
 print("Min Error:" + str(min_error))
 print("Max Error:" + str(max_error))
 print("Std Error:" + str(std_error))
 
-print('Root Mean Square Error train = ' + str(np.sqrt(mean_squared_error(train_y, y_pred_train))))
-print('Root Mean Square Error val = ' + str(np.sqrt(mean_squared_error(val_y, y_pred_val))))
-print('Root Mean Square Error test = ' + str(np.sqrt(mean_squared_error(test_y, y_pred_test))))
+# print('Root Mean Square Error train = ' + str(np.sqrt(mean_squared_error(train_y, y_pred_train))))
+# print('Root Mean Square Error val = ' + str(np.sqrt(mean_squared_error(val_y, y_pred_val))))
+# print('Root Mean Square Error test = ' + str(np.sqrt(mean_squared_error(test_y, y_pred_test))))
 
 
 plot_loss(history)
