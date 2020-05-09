@@ -7,12 +7,19 @@ This is a project that attempts to use VGGnet, CNN's, Deep Multi layer Perceptio
 # Quick Start
 After ensuring you have the correct python dependencies.
 Run the scripts in this order
+
 	1. webscraper.py
+	
 	2. datacleaner.py
+	
 	3. vggFeatureExtractor.py
+	
 	4. (optional) orbFeatureExtractor.py
+	
 	5. cnn.py
+	
 	6. (optional) vggNN.py
+	
 	7. (optional) orbNN.py (requires orbFeatureExtractor.py to be run)
 
 
@@ -51,17 +58,30 @@ orbNN.py depends on depends on vggFeatureExtractor.py and orbFeatureExtractor.py
 ## Python Dependencies
 
 matplotlib
+
 numpy
+
 tensorflow 
+
 keras
+
 scipy
-requests  
+
+requests 
+
 pandas
-html5lib  
+
+html5lib 
+
 bs4
+
 tabulate
+
 time  
+
 cv2
+
 seaborn
+
 sklearn
 
