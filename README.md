@@ -27,7 +27,7 @@ Run the scripts in this order
 
 The software is divided into three parts, data, feature extraction and NN's. 
 
-The data which is the comic book covers which are located on a google drive at "" or you can use the webscraper.py to fetch the most recent copies and then datacleaner.py to prepare the data. 
+The data which is the comic book covers which are located in a zip on a google drive at https://drive.google.com/file/d/1KoB3K2uO9Jb9M3BJ2QvZRv1P31Rfx0jh/view?usp=sharing or you can use the webscraper.py to fetch the most recent copies and then datacleaner.py to prepare the data. 
 
 The feature extraction section which consists of vggFeatureExtractor.py and orbFeatureExtractor. You must always run the vggFeatureExtractor at least once as this script also prepares the Y data. You only need to run the orbFeatureExtractor if you wish to use the orb features.
 
