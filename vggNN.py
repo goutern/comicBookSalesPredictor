@@ -16,8 +16,8 @@ from scipy.stats import stats
 
 # Importing sklearn libraries
 
-epochs = 10
-batch_size = 32
+epochs = 1000
+batch_size = 8
 
 def swish(x, beta = 1):
     return (x * sigmoid(beta * x))

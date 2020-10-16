@@ -1,11 +1,13 @@
 import warnings
 
+import cv2
 from keras.applications import VGG16
 from keras.preprocessing import image
-from keras_applications import imagenet_utils
+from keras.applications import imagenet_utils
 from pandas import np
+from PIL import ImageFile
 
-batch_size = 32
+batch_size = 4
 data_y = []
 def create_y(data):
     for comic in data:
@@ -14,6 +16,7 @@ def create_y(data):
     np.savetxt('data_y.csv', data_y, delimiter=',')
 
 def create_features(dataSource, pre_model):
+    ImageFile.LOAD_TRUNCATED_IMAGES = True
     x_scratch = []
     for comic in dataSource:
         img_path = comic[3]

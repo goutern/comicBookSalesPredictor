@@ -24,7 +24,7 @@ def make_safe_filename(s):
     return "".join(safe_char(c) for c in s).rstrip("_")
 
 cleandata = np.zeros(shape=(1,8))
-for year in range (2000, 2020):
+for year in range (2015, 2020):
     print(str(year))
     # if not (os.path.exists("comics\\" + str(year))):
     #         os.mkdir("comics\\" + str(year))
@@ -64,6 +64,7 @@ namecheck = cleandata[:,7]
 u, c = np.unique(namecheck, return_counts=True)
 dup = u[c > 1]
 print("dupes?: =" + dup)
+print(cleandata)
 np.save("cleanData.npy", cleandata)
 
 
